@@ -158,6 +158,7 @@ async function main(options = {}) {
   const releaseLock = acquireProcessLock(paths.lockPath, options.lockOptions || {});
   let agent = null;
   let rl = null;
+  let readlineClosed = false;
   let onSignal = null;
   try {
     agent = createReminderAgent({
@@ -177,6 +178,7 @@ async function main(options = {}) {
       output,
       terminal: options.terminal === undefined ? Boolean(input.isTTY) : options.terminal,
     });
+    rl.on("close", () => { readlineClosed = true; });
     rl.setPrompt("reminders> ");
     onSignal = () => rl.close();
     process.on("SIGINT", onSignal);
@@ -188,7 +190,7 @@ async function main(options = {}) {
         rl.close();
         break;
       }
-      rl.prompt();
+      if (!readlineClosed) rl.prompt();
     }
   } finally {
     if (onSignal) {
