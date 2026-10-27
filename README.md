@@ -19,7 +19,9 @@ node bin/clawd-reminders.js
 2. Copy the generated `agent_id` from Clawd.
 3. In the running command-line manager, enter `agent-id <custom-agent-id>`.
 
-The agent reads Clawd's current `~/.clawd/runtime.json` for the local port each time it sends a notification. It posts only to `127.0.0.1`, on Clawd's documented local port range, and uses the registered agent ID. It never reads Codex or other agent authentication files.
+The agent reads Clawd's current `~/.clawd/runtime.json` before **every notification** and verifies `app: "clawd-on-desk"`. It accepts Clawd's fixed `23333–23337` ports **and dynamic ports**: a port must be a number from `1` to `65535` or a canonical decimal string (no spaces or leading zeroes). It always POSTs to the literal `http://127.0.0.1:<port>/state`; a runtime file cannot change the host or path. It never reads Codex or other agent authentication files.
+
+On macOS/Linux, the runtime file must be a regular, non-symlink file owned by the current user without group/other permissions (Clawd publishes it as `0600`). Windows relies on the user's profile ACL. An absent, invalid, or stale runtime is treated as an offline delivery and retried. The runtime identity and loopback restriction reduce accidental or cross-user misrouting, but **are not cryptographic authentication**: another process running as the same OS user can still spoof a local listener or runtime file. Do not put credentials or full prompts in reminder titles.
 
 ## Create and manage reminders
 

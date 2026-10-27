@@ -322,13 +322,12 @@ test("scheduled reminder delivery reaches the Clawd client when the service time
   try {
     const port = await listen(server);
     fs.mkdirSync(path.dirname(paths.runtimePath), { recursive: true, mode: 0o700 });
-    fs.writeFileSync(paths.runtimePath, JSON.stringify({ app: "clawd-on-desk", port }));
+    fs.writeFileSync(paths.runtimePath, JSON.stringify({ app: "clawd-on-desk", port }), { mode: 0o600 });
     agent = createReminderAgent({
       paths,
       now: clock.now,
       setTimeout: clock.setTimeout,
       clearTimeout: clock.clearTimeout,
-      allowedPorts: [port],
       log: () => {},
     });
     assert.equal(agent.start().ok, true);
