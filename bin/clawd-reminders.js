@@ -32,6 +32,11 @@ function helpText() {
     "  retry [id]                   立即重试到期提醒",
     "  help                         显示帮助",
     "  quit                         退出；提醒会保存在本机",
+    "后台模式：",
+    "  node bin/clawd-reminders.js service install|start|status|stop|disable|uninstall",
+    "  node bin/clawd-reminders.js add <提醒时间和内容>    后台运行时远程管理",
+    "  node bin/clawd-reminders.js list|done|cancel|snooze|retry|agent-id ...",
+    "  node bin/clawd-reminders.js daemon             独立前台守护入口（无 TTY）",
   ].join("\n");
 }
 
@@ -206,14 +211,54 @@ async function main(options = {}) {
   }
 }
 
+async function dispatch(args = process.argv.slice(2), options = {}) {
+  if (!args.length) return main(options);
+  const command = args[0];
+  const write = options.write || process.stdout.write.bind(process.stdout);
+  if (command === "daemon" && args.length === 1) {
+    return require("../src/daemon").runDaemon(options);
+  }
+  if (command === "service") {
+    const action = args[1];
+    if (args.length !== 2 || !["install", "start", "status", "stop", "disable", "uninstall"].includes(action)) {
+      throw new Error("Usage: service install|start|status|stop|disable|uninstall");
+    }
+    const manager = require("../src/launch-agent").createLaunchAgentManager(options.launchAgentOptions);
+    const result = manager[action]();
+    write(`${JSON.stringify(result)}\n`);
+    if (action === "status") {
+      try {
+        const ping = await require("../src/daemon").sendControlCommand("__ping__", options);
+        write(`IPC: ${ping.output}`);
+      } catch (error) { write(`IPC: unavailable (${error.code || error.message})\n`); }
+    }
+    return result;
+  }
+  if (args.length === 1 && (command === "help" || command === "--help" || command === "-h")) {
+    writeLine(write, helpText());
+    return { ok: true };
+  }
+  if (!["agent-id", "add", "list", "done", "complete", "cancel", "snooze", "retry"].includes(command)) {
+    throw new Error("Unsupported command. Use 'help' for available commands.");
+  }
+  const response = await require("../src/daemon").sendControlCommand(args.join(" "), options);
+  write(response.output);
+  if (!response.ok) process.exitCode = 1;
+  return response;
+}
+
 if (require.main === module) {
-  main().catch((error) => {
+  dispatch().catch((error) => {
     const detail = error && error.code === "lock_recovery_in_progress"
       ? "A stale-lock recovery is already running or was interrupted. Confirm no reminder agent is active, then remove ~/.clawd-reminders/agent.lock.recover."
+      : error && error.code === "agent_already_running"
+      ? "Another reminder owner is running. Manage the daemon with 'node bin/clawd-reminders.js list' or stop the existing CLI."
+      : error && error.code === "daemon_not_running"
+      ? "Reminder daemon is not running. Use 'service install' then 'service start' (or run 'daemon')."
       : error && error.code ? error.code : error && error.message ? error.message : String(error);
     process.stderr.write(`Clawd Reminder Agent failed: ${detail}\n`);
     process.exitCode = 1;
   });
 }
 
-module.exports = { executeCommand, formatDueTime, helpText, main };
+module.exports = { executeCommand, formatDueTime, helpText, main, dispatch };

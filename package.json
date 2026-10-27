@@ -12,6 +12,7 @@
   },
   "scripts": {
     "start": "node bin/clawd-reminders.js",
+    "daemon": "node bin/clawd-reminders.js daemon",
     "test": "node --test"
   }
 }

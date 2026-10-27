@@ -21,6 +21,7 @@ function resolveDataPaths(home = os.homedir()) {
     storePath: path.join(dataDir, "reminders.json"),
     configPath: path.join(dataDir, "config.json"),
     lockPath: path.join(dataDir, "agent.lock"),
+    socketPath: path.join(dataDir, "control.sock"),
     runtimePath: path.join(home, ".clawd", "runtime.json"),
   });
 }
