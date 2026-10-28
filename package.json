@@ -1,0 +1,18 @@
+{
+  "name": "clawd-reminder-agent",
+  "version": "0.1.0",
+  "description": "A local reminder manager that alerts Clawd through its custom HTTP agent endpoint.",
+  "license": "AGPL-3.0-only",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "bin": {
+    "clawd-reminders": "bin/clawd-reminders.js"
+  },
+  "scripts": {
+    "start": "node bin/clawd-reminders.js",
+    "daemon": "node bin/clawd-reminders.js daemon",
+    "test": "node --test"
+  }
+}
