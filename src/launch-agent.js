@@ -66,13 +66,29 @@ function createLaunchAgentManager(options = {}) {
     return result;
   }
 
+  function checkAgentDirectory() {
+    let stat;
+    try { stat = fs.lstatSync(path.dirname(plist)); } catch (error) {
+      if (error.code === "ENOENT") return null;
+      throw error;
+    }
+    if (!stat.isDirectory() || stat.isSymbolicLink()
+      || (process.getuid && stat.uid !== process.getuid())
+      || (stat.mode & 0o022) !== 0) {
+      throw errorWithCode("launch_agent_directory_unsafe");
+    }
+    return stat;
+  }
+
   function existingPlist() {
+    checkAgentDirectory();
     let stat;
     try { stat = fs.lstatSync(plist); } catch (error) {
       if (error.code === "ENOENT") return null;
       throw error;
     }
-    if (!stat.isFile() || stat.isSymbolicLink() || (process.getuid && stat.uid !== process.getuid())) {
+    if (!stat.isFile() || stat.isSymbolicLink() || (process.getuid && stat.uid !== process.getuid())
+      || (stat.mode & 0o022) !== 0) {
       throw errorWithCode("launch_agent_plist_unsafe");
     }
     const content = fs.readFileSync(plist, "utf8");
@@ -95,8 +111,7 @@ function createLaunchAgentManager(options = {}) {
     }
     const dir = path.dirname(plist);
     fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
-    const info = fs.lstatSync(dir);
-    if (!info.isDirectory() || info.isSymbolicLink()) throw errorWithCode("launch_agent_directory_unsafe");
+    checkAgentDirectory();
     const dataDir = path.join(home, ".clawd-reminders");
     fs.mkdirSync(dataDir, { recursive: true, mode: 0o700 });
     const dataStat = fs.lstatSync(dataDir);

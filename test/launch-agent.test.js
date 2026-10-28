@@ -76,6 +76,34 @@ test("LaunchAgent rejects arbitrary existing plist and changed executable paths"
   } finally { fs.rmSync(home, { recursive: true, force: true }); }
 });
 
+test("LaunchAgent refuses group/world-writable registration directory and plist", () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "clawd-perms-"));
+  const dir = path.join(home, "Library", "LaunchAgents");
+  const manager = createLaunchAgentManager({
+    platform: "darwin", uid: process.getuid(), home,
+    nodePath: "/absolute/node", scriptPath: "/absolute/app/bin/clawd-reminders.js",
+    run: (args) => ({ status: args[0] === "print" ? 113 : 0 }),
+  });
+  try {
+    fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+    fs.chmodSync(dir, 0o777);
+    assert.throws(() => manager.install(), { code: "launch_agent_directory_unsafe" });
+    assert.equal(fs.existsSync(manager.plist), false);
+
+    fs.chmodSync(dir, 0o700);
+    const { plist } = manager.install();
+    fs.chmodSync(dir, 0o777);
+    assert.throws(() => manager.start(), { code: "launch_agent_directory_unsafe" });
+    fs.chmodSync(dir, 0o700);
+    fs.chmodSync(plist, 0o666);
+    assert.throws(() => manager.start(), { code: "launch_agent_plist_unsafe" });
+    assert.throws(() => manager.install(), { code: "launch_agent_plist_unsafe" });
+
+    fs.chmodSync(plist, 0o600);
+    assert.equal(manager.start().loaded, true);
+  } finally { fs.rmSync(home, { recursive: true, force: true }); }
+});
+
 test("service management is gated to a macOS user session and launchctl errors propagate", () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "clawd-platform-"));
   try {
