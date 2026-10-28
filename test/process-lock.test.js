@@ -64,6 +64,45 @@ test("process lock fails closed when stale recovery is already owned", () => {
   }
 });
 
+test("process lock recovers a stale PID reused by another live process", { skip: process.platform !== "darwin" }, () => {
+  const directory = makeTempDir();
+  const lockPath = path.join(directory, "agent.lock");
+  try {
+    // A normal current owner is recognized even when its PID is alive.
+    acquireProcessLock(lockPath);
+    const previous = JSON.parse(fs.readFileSync(lockPath, "utf8"));
+    assert.ok(Number.isSafeInteger(previous.pidStartTime), "lock records the owner's OS start time");
+    assert.throws(() => acquireProcessLock(lockPath), { code: "agent_already_running" });
+
+    // Simulate a crash followed by PID reuse: process.kill(pid, 0) reports a live
+    // (unrelated) process, but its OS start time no longer matches the old lock.
+    fs.writeFileSync(lockPath, JSON.stringify({
+      ...previous, pidStartTime: previous.pidStartTime - 60_000,
+    }));
+    const release = acquireProcessLock(lockPath);
+    assert.equal(JSON.parse(fs.readFileSync(lockPath, "utf8")).pid, process.pid);
+    assert.equal(release(), true);
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
+test("process lock refuses takeover when a live PID's start time cannot be checked", () => {
+  const directory = makeTempDir();
+  const lockPath = path.join(directory, "agent.lock");
+  try {
+    fs.writeFileSync(lockPath, JSON.stringify({ pid: 1234, pidStartTime: 123_456_000 }));
+    assert.throws(() => acquireProcessLock(lockPath, {
+      pid: 5678,
+      isPidRunning: () => true,
+      readPidStartTime: () => null,
+    }), { code: "agent_already_running" });
+    assert.equal(JSON.parse(fs.readFileSync(lockPath, "utf8")).pid, 1234);
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 test("concurrent stale-lock recovery cannot delete a newly acquired live lock", () => {
   const directory = makeTempDir();
   const lockPath = path.join(directory, "agent.lock");
